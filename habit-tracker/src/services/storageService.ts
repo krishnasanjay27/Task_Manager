@@ -1,16 +1,20 @@
 // Storage Abstraction Layer
 // Centralized storage service for all app data persistence
 
-import { Habit, Task } from '@/types';
+import { Habit, Task, NotificationSettings, DEFAULT_NOTIFICATION_SETTINGS } from '@/types';
 
 // Schema version for data migration support
 export const SCHEMA_VERSION = 1;
+
+// App version for backup metadata
+export const APP_VERSION = '1.0.0';
 
 // Storage keys - centralized to prevent key collisions
 export const STORAGE_KEYS = {
     HABITS: 'habits',
     TASKS: 'tasks',
     SETTINGS: 'app_settings',
+    NOTIFICATIONS: 'notification_settings',
     SCHEMA_VERSION: 'schema_version',
 } as const;
 
@@ -23,10 +27,12 @@ export interface AppSettings {
 
 // Complete app data structure for backup/restore
 export interface AppData {
+    appVersion?: string;
     schemaVersion: number;
     habits: Habit[];
     tasks: Task[];
     settings: AppSettings;
+    notificationSettings?: NotificationSettings;
     exportedAt?: string;
 }
 
@@ -206,4 +212,18 @@ export function saveSettings(settings: AppSettings): void {
  */
 export function getStoredSchemaVersion(): number {
     return getItem(STORAGE_KEYS.SCHEMA_VERSION, SCHEMA_VERSION);
+}
+
+/**
+ * Load notification settings from storage
+ */
+export function loadNotificationSettings(): NotificationSettings {
+    return getItem<NotificationSettings>(STORAGE_KEYS.NOTIFICATIONS, DEFAULT_NOTIFICATION_SETTINGS);
+}
+
+/**
+ * Save notification settings to storage
+ */
+export function saveNotificationSettings(settings: NotificationSettings): void {
+    setItem(STORAGE_KEYS.NOTIFICATIONS, settings);
 }

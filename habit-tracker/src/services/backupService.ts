@@ -6,9 +6,11 @@ import {
     loadAppData,
     saveAppData,
     SCHEMA_VERSION,
-    StorageError
+    APP_VERSION,
+    StorageError,
+    loadNotificationSettings
 } from './storageService';
-import { Habit, Task } from '@/types';
+import { Habit, Task, NotificationSettings } from '@/types';
 
 // Validation result type
 export interface BackupValidationResult {
@@ -23,11 +25,14 @@ export interface BackupValidationResult {
  */
 export function exportToJson(): void {
     const data = loadAppData();
+    const notificationSettings = loadNotificationSettings();
 
     // Add export metadata
     const exportData: AppData = {
         ...data,
+        appVersion: APP_VERSION,
         schemaVersion: SCHEMA_VERSION,
+        notificationSettings,
         exportedAt: new Date().toISOString(),
     };
 

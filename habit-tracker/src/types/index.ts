@@ -41,3 +41,25 @@ export interface Analytics {
   currentStreak: number;
   longestStreak: number;
 }
+
+// Notification settings for push notifications
+export interface NotificationSettings {
+  enabled: boolean;
+  habitReminders: boolean;
+  taskReminders: boolean;
+  reminderTime: string; // 24-hour format "HH:MM"
+  quietHoursEnabled: boolean;
+  quietHoursStart: string; // "HH:MM"
+  quietHoursEnd: string; // "HH:MM"
+}
+
+// Default notification settings
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  enabled: false,
+  habitReminders: true,
+  taskReminders: true,
+  reminderTime: '20:00',
+  quietHoursEnabled: false,
+  quietHoursStart: '22:00',
+  quietHoursEnd: '08:00',
+};

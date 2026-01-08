@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useCalendar } from '@/hooks';
 import { Modal } from '@/components/ui';
 import { DataManagement } from './DataManagement';
+import { NotificationSettings } from './NotificationSettings';
 
 const navItems = [
     { href: '/', label: 'Today', icon: 'today' },
@@ -278,10 +279,18 @@ export function Sidebar({ calendar, isCollapsed, onToggleCollapse, onDataImport 
                 onClose={() => setShowSettings(false)}
                 title="Settings"
             >
-                <DataManagement onImportSuccess={() => {
-                    setShowSettings(false);
-                    onDataImport?.();
-                }} />
+                <div className="space-y-6">
+                    {/* Notification Settings */}
+                    <NotificationSettings />
+
+                    <hr className="border-[var(--border)]" />
+
+                    {/* Data Management */}
+                    <DataManagement onImportSuccess={() => {
+                        setShowSettings(false);
+                        onDataImport?.();
+                    }} />
+                </div>
             </Modal>
         </>
     );
