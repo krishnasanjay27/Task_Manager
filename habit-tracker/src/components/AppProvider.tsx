@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, ReactNode, useState } from 'react';
 import { Sidebar } from './Sidebar';
-import { useCalendar, useHabits, useTasks } from '@/hooks';
+import { useCalendar, useHabits, useTasks, useTaskNotifications } from '@/hooks';
 
 // Create context for shared state
 interface AppContextType {
@@ -26,6 +26,16 @@ interface AppProviderProps {
     children: ReactNode;
 }
 
+/**
+ * TaskNotificationManager
+ * Headless component that runs task notification polling in the background.
+ * Does not render anything - just activates the useTaskNotifications hook.
+ */
+function TaskNotificationManager() {
+    useTaskNotifications();
+    return null;
+}
+
 export function AppProvider({ children }: AppProviderProps) {
     const calendar = useCalendar();
     const habits = useHabits();
@@ -40,6 +50,8 @@ export function AppProvider({ children }: AppProviderProps) {
 
     return (
         <AppContext.Provider value={{ calendar, habits, tasks, isHydrated }}>
+            {/* Background task notification polling */}
+            <TaskNotificationManager />
             <div className="min-h-screen bg-[var(--bg-primary)]">
                 <Sidebar
                     calendar={calendar}
