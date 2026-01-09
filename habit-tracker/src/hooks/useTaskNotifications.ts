@@ -21,8 +21,8 @@ const PUSH_SERVER_URL = process.env.NEXT_PUBLIC_PUSH_SERVER_URL || 'http://local
 // Polling interval: 5 minutes
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
-// Initial delay before first check: 1 minute after page load
-const INITIAL_DELAY_MS = 60 * 1000;
+// Initial delay before first check: 10 seconds after page load (reduced for faster first check)
+const INITIAL_DELAY_MS = 10 * 1000;
 
 // Tasks due within this window will trigger notifications
 const DUE_WINDOW_MINUTES = 30;
@@ -44,8 +44,10 @@ function isDueSoon(dueDate: string): boolean {
     const diffMs = due.getTime() - now.getTime();
     const diffMinutes = diffMs / (1000 * 60);
 
-    // Due within 30 minutes AND not already past
-    return diffMinutes > 0 && diffMinutes <= DUE_WINDOW_MINUTES;
+    const result = diffMinutes > 0 && diffMinutes <= DUE_WINDOW_MINUTES;
+    console.log(`[TaskNotif] isDueSoon check: due=${dueDate}, diffMinutes=${diffMinutes.toFixed(1)}, isDueSoon=${result}`);
+
+    return result;
 }
 
 /**
@@ -56,17 +58,23 @@ function isDueSoon(dueDate: string): boolean {
  * - Due within 30 minutes
  */
 function filterNotifiableTasks(tasks: Task[]): TaskPayload[] {
-    return tasks
-        .filter(task =>
-            // High or Critical priority only
-            (task.priority === 'High' || task.priority === 'Critical') &&
-            // Not completed
-            task.status !== 'Completed' &&
-            // Has a valid due date
-            task.dueDate &&
-            // Due within 30 minutes
-            isDueSoon(task.dueDate)
-        )
+    console.log(`[TaskNotif] Filtering ${tasks.length} total tasks`);
+
+    const filtered = tasks
+        .filter(task => {
+            const isHighPriority = task.priority === 'High' || task.priority === 'Critical';
+            const isNotCompleted = task.status !== 'Completed';
+            const hasDueDate = !!task.dueDate;
+            const dueSoon = hasDueDate ? isDueSoon(task.dueDate!) : false;
+
+            const shouldNotify = isHighPriority && isNotCompleted && hasDueDate && dueSoon;
+
+            if (isHighPriority && hasDueDate) {
+                console.log(`[TaskNotif] Task "${task.title}": priority=${task.priority}, status=${task.status}, dueDate=${task.dueDate}, dueSoon=${dueSoon}, shouldNotify=${shouldNotify}`);
+            }
+
+            return shouldNotify;
+        })
         .map(task => ({
             id: task.id,
             title: task.title,
@@ -74,23 +82,32 @@ function filterNotifiableTasks(tasks: Task[]): TaskPayload[] {
             status: task.status,
             dueDate: task.dueDate!
         }));
+
+    console.log(`[TaskNotif] Filtered to ${filtered.length} notifiable tasks`);
+    return filtered;
 }
 
 /**
  * Send tasks to backend for notification processing
  */
 async function sendTasksToBackend(tasks: TaskPayload[]): Promise<void> {
-    if (tasks.length === 0) return;
+    if (tasks.length === 0) {
+        console.log('[TaskNotif] No tasks to send');
+        return;
+    }
+
+    console.log(`[TaskNotif] Sending ${tasks.length} tasks to backend:`, tasks);
 
     try {
-        await fetch(`${PUSH_SERVER_URL}/check-tasks`, {
+        const response = await fetch(`${PUSH_SERVER_URL}/check-tasks`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tasks })
         });
-        // Silently succeed - backend handles deduplication
-    } catch {
-        // Silently fail - don't break UI for notification failures
+        const result = await response.json();
+        console.log('[TaskNotif] Backend response:', result);
+    } catch (error) {
+        console.error('[TaskNotif] Failed to send tasks:', error);
     }
 }
 
@@ -110,17 +127,32 @@ export function useTaskNotifications() {
      * Check tasks and send to backend if any are due soon
      */
     const checkTasks = useCallback(async () => {
+        console.log('[TaskNotif] Running task check...');
+
         // Early exit if notifications not supported or permitted
-        if (!isPushSupported()) return;
-        if (getPermissionState() !== 'granted') return;
+        if (!isPushSupported()) {
+            console.log('[TaskNotif] Push not supported');
+            return;
+        }
+        if (getPermissionState() !== 'granted') {
+            console.log('[TaskNotif] Permission not granted:', getPermissionState());
+            return;
+        }
 
         // Check if subscribed
         const subscription = await getCurrentSubscription();
-        if (!subscription) return;
+        if (!subscription) {
+            console.log('[TaskNotif] No subscription found');
+            return;
+        }
 
         // Check notification settings
         const settings = loadNotificationSettings();
-        if (!settings.enabled || !settings.taskReminders) return;
+        console.log('[TaskNotif] Settings:', { enabled: settings.enabled, taskReminders: settings.taskReminders });
+        if (!settings.enabled || !settings.taskReminders) {
+            console.log('[TaskNotif] Task notifications disabled in settings');
+            return;
+        }
 
         // Load and filter tasks
         const tasks = loadTasks();
@@ -134,13 +166,18 @@ export function useTaskNotifications() {
      * Start the polling interval
      */
     const startPolling = useCallback(() => {
-        if (isActiveRef.current) return;
+        if (isActiveRef.current) {
+            console.log('[TaskNotif] Polling already active');
+            return;
+        }
 
+        console.log('[TaskNotif] Starting polling...');
         isActiveRef.current = true;
 
-        // Initial check after delay
+        // Initial check after short delay
         setTimeout(() => {
             if (isActiveRef.current) {
+                console.log('[TaskNotif] Running initial check');
                 checkTasks();
             }
         }, INITIAL_DELAY_MS);
@@ -148,6 +185,7 @@ export function useTaskNotifications() {
         // Regular interval
         intervalRef.current = setInterval(() => {
             if (isActiveRef.current && document.visibilityState === 'visible') {
+                console.log('[TaskNotif] Running scheduled check');
                 checkTasks();
             }
         }, POLL_INTERVAL_MS);
@@ -157,6 +195,7 @@ export function useTaskNotifications() {
      * Stop the polling interval
      */
     const stopPolling = useCallback(() => {
+        console.log('[TaskNotif] Stopping polling');
         isActiveRef.current = false;
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
@@ -169,7 +208,7 @@ export function useTaskNotifications() {
      */
     const handleVisibilityChange = useCallback(() => {
         if (document.visibilityState === 'visible' && isActiveRef.current) {
-            // Trigger a check when tab becomes visible again
+            console.log('[TaskNotif] Tab became visible, running check');
             checkTasks();
         }
     }, [checkTasks]);
@@ -180,15 +219,29 @@ export function useTaskNotifications() {
     useEffect(() => {
         // Initial setup
         const initPolling = async () => {
-            if (!isPushSupported()) return;
-            if (getPermissionState() !== 'granted') return;
+            console.log('[TaskNotif] Initializing...');
+
+            if (!isPushSupported()) {
+                console.log('[TaskNotif] Push not supported, skipping');
+                return;
+            }
+            if (getPermissionState() !== 'granted') {
+                console.log('[TaskNotif] Permission not granted, skipping');
+                return;
+            }
 
             const subscription = await getCurrentSubscription();
-            if (!subscription) return;
+            if (!subscription) {
+                console.log('[TaskNotif] No subscription, skipping');
+                return;
+            }
 
             const settings = loadNotificationSettings();
             if (settings.enabled && settings.taskReminders) {
+                console.log('[TaskNotif] Conditions met, starting polling');
                 startPolling();
+            } else {
+                console.log('[TaskNotif] Notifications disabled in settings');
             }
         };
 
