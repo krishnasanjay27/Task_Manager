@@ -38,6 +38,7 @@ export default function TasksPage() {
     const [formDescription, setFormDescription] = useState('');
     const [formPriority, setFormPriority] = useState<TaskPriority>('Medium');
     const [formDueDate, setFormDueDate] = useState('');
+    const [formDueTime, setFormDueTime] = useState('');
     const [formEstimatedTime, setFormEstimatedTime] = useState('');
     const [formTags, setFormTags] = useState('');
 
@@ -46,6 +47,7 @@ export default function TasksPage() {
         setFormDescription('');
         setFormPriority('Medium');
         setFormDueDate('');
+        setFormDueTime('');
         setFormEstimatedTime('');
         setFormTags('');
         setEditingTask(null);
@@ -56,7 +58,17 @@ export default function TasksPage() {
         setFormTitle(task.title);
         setFormDescription(task.description || '');
         setFormPriority(task.priority);
-        setFormDueDate(task.dueDate || '');
+        // Extract date and time from dueDate if it's a full datetime
+        if (task.dueDate) {
+            const [datePart, timePart] = task.dueDate.includes('T')
+                ? task.dueDate.split('T')
+                : [task.dueDate, ''];
+            setFormDueDate(datePart);
+            setFormDueTime(timePart ? timePart.slice(0, 5) : '');
+        } else {
+            setFormDueDate('');
+            setFormDueTime('');
+        }
         setFormEstimatedTime(task.estimatedTime?.toString() || '');
         setFormTags(task.tags.join(', '));
         setShowAddModal(true);
@@ -67,12 +79,24 @@ export default function TasksPage() {
 
         const tagsArray = formTags.split(',').map(t => t.trim()).filter(t => t);
 
+        // Combine date and time into ISO datetime if both provided
+        let fullDueDate: string | undefined;
+        if (formDueDate) {
+            if (formDueTime) {
+                // Full datetime: "2026-01-09T18:30:00"
+                fullDueDate = `${formDueDate}T${formDueTime}:00`;
+            } else {
+                // Date only - default to end of day for notifications
+                fullDueDate = `${formDueDate}T23:59:00`;
+            }
+        }
+
         if (editingTask) {
             tasks.updateTask(editingTask.id, {
                 title: formTitle.trim(),
                 description: formDescription.trim() || undefined,
                 priority: formPriority,
-                dueDate: formDueDate || undefined,
+                dueDate: fullDueDate,
                 estimatedTime: formEstimatedTime ? parseInt(formEstimatedTime) : undefined,
                 tags: tagsArray,
             });
@@ -81,7 +105,7 @@ export default function TasksPage() {
                 formTitle.trim(),
                 formPriority,
                 formDescription.trim() || undefined,
-                formDueDate || undefined,
+                fullDueDate,
                 formEstimatedTime ? parseInt(formEstimatedTime) : undefined,
                 tagsArray
             );
@@ -214,7 +238,7 @@ export default function TasksPage() {
                                         {/* Meta Info */}
                                         <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
                                             {task.dueDate && (
-                                                <span>Due: {format(new Date(task.dueDate), 'MMM d')}</span>
+                                                <span>Due: {format(new Date(task.dueDate), task.dueDate.includes('T') ? 'MMM d, h:mm a' : 'MMM d')}</span>
                                             )}
                                             {task.estimatedTime && (
                                                 <span>Est: {task.estimatedTime}m</span>
@@ -269,12 +293,20 @@ export default function TasksPage() {
                         value={formPriority}
                         onChange={(e) => setFormPriority(e.target.value as TaskPriority)}
                     />
-                    <Input
-                        label="Due Date"
-                        type="date"
-                        value={formDueDate}
-                        onChange={(e) => setFormDueDate(e.target.value)}
-                    />
+                    <div className="grid grid-cols-2 gap-3">
+                        <Input
+                            label="Due Date"
+                            type="date"
+                            value={formDueDate}
+                            onChange={(e) => setFormDueDate(e.target.value)}
+                        />
+                        <Input
+                            label="Due Time (optional)"
+                            type="time"
+                            value={formDueTime}
+                            onChange={(e) => setFormDueTime(e.target.value)}
+                        />
+                    </div>
                     <Input
                         label="Estimated Time (minutes)"
                         type="number"
