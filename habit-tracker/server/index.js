@@ -315,9 +315,16 @@ cron.schedule('* * * * *', async () => {
     // Skip if habit reminders are disabled
     if (!settings.habitRemindersEnabled) return;
 
-    // Get current time in HH:MM format
+    // Get current time in user's timezone (IST for this deployment)
+    // Note: For multi-user, store timezone per user in settings
+    const userTimezone = settings.timezone || 'Asia/Kolkata';
     const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+    const currentTime = now.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: userTimezone
+    }); // "HH:MM" in user's timezone
     const reminderTime = settings.reminderTime || '20:00';
 
     // Only trigger if within ±1 minute of configured time (prevents race condition misses)
@@ -333,10 +340,8 @@ cron.schedule('* * * * *', async () => {
         }
     }
 
-    console.log('⏰ Running daily habit reminder...');
+    console.log(`⏰ Running daily habit reminder at ${currentTime} (${userTimezone})...`);
     await sendHabitReminder();
-}, {
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 });
 
 /**
