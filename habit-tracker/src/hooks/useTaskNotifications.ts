@@ -217,9 +217,13 @@ export function useTaskNotifications() {
      * Initialize polling based on settings
      */
     useEffect(() => {
-        // Initial setup
+        // Initial setup with delay to let useNotifications sync settings first
         const initPolling = async () => {
-            console.log('[TaskNotif] Initializing...');
+            console.log('[TaskNotif] Initializing (waiting for settings sync)...');
+
+            // Wait for useNotifications to sync settings with subscription state
+            // This avoids race condition where we read stale settings
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             if (!isPushSupported()) {
                 console.log('[TaskNotif] Push not supported, skipping');
@@ -237,6 +241,7 @@ export function useTaskNotifications() {
             }
 
             const settings = loadNotificationSettings();
+            console.log('[TaskNotif] Settings after sync:', { enabled: settings.enabled, taskReminders: settings.taskReminders });
             if (settings.enabled && settings.taskReminders) {
                 console.log('[TaskNotif] Conditions met, starting polling');
                 startPolling();
@@ -256,6 +261,29 @@ export function useTaskNotifications() {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [startPolling, stopPolling, handleVisibilityChange]);
+
+    /**
+     * React to notification settings changes (same-tab updates)
+     * This enables/disables polling when user toggles settings WITHOUT page reload
+     */
+    useEffect(() => {
+        const handleSettingsChange = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            const settings = customEvent.detail;
+            console.log('[TaskNotif] Settings changed event:', settings);
+
+            if (settings.enabled && settings.taskReminders) {
+                console.log('[TaskNotif] Settings enabled, starting polling');
+                startPolling();
+            } else {
+                console.log('[TaskNotif] Settings disabled, stopping polling');
+                stopPolling();
+            }
+        };
+
+        window.addEventListener('notificationSettingsChanged', handleSettingsChange);
+        return () => window.removeEventListener('notificationSettingsChanged', handleSettingsChange);
+    }, [startPolling, stopPolling]);
 
     return {
         checkTasks, // Manual trigger if needed

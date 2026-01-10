@@ -226,4 +226,8 @@ export function loadNotificationSettings(): NotificationSettings {
  */
 export function saveNotificationSettings(settings: NotificationSettings): void {
     setItem(STORAGE_KEYS.NOTIFICATIONS, settings);
+    // Dispatch custom event for same-tab listeners (storage event only fires in other tabs)
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notificationSettingsChanged', { detail: settings }));
+    }
 }
