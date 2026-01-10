@@ -45,7 +45,16 @@ export function useNotifications() {
 
             // Check if already subscribed
             const subscription = await getCurrentSubscription();
-            setIsSubscribed(!!subscription);
+            const hasSubscription = !!subscription;
+            setIsSubscribed(hasSubscription);
+
+            // CRITICAL FIX: Sync settings.enabled with actual subscription state
+            // This ensures useTaskNotifications starts polling correctly on page load
+            if (hasSubscription && !savedSettings.enabled) {
+                const syncedSettings = { ...savedSettings, enabled: true };
+                saveToStorage(syncedSettings);
+                setSettings(syncedSettings);
+            }
 
             setIsLoading(false);
         }
