@@ -212,6 +212,13 @@ export default function TodayPage() {
                         Est: {task.estimatedTime}m
                       </span>
                     )}
+                    {
+                      task.dueDate && (
+                        <span className="text-xs text-[var(--text-tertiary)]">
+                          Due: {format(new Date(task.dueDate), 'MMM d')}
+                        </span>
+                      )
+                    }
                   </div>
                 </div>
               </div>
